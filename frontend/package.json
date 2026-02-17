@@ -1,0 +1,33 @@
+{
+  "name": "ai-test-platform-frontend",
+  "version": "1.0.0",
+  "description": "AI Test Platform Frontend",
+  "scripts": {
+    "dev": "umi dev",
+    "build": "umi build",
+    "start": "npm run dev",
+    "postinstall": "umi setup",
+    "setup": "umi setup"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@ant-design/pro-components": "^2.6.43",
+    "@umijs/max": "^4.0.87",
+    "ahooks": "^3.7.8",
+    "antd": "^5.12.5",
+    "axios": "^1.6.5",
+    "dayjs": "^1.11.10",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "umi": "^4.6.28",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.202",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.3.3"
+  }
+}
