@@ -1,14 +1,41 @@
-# 🤖 AI 自动化测试平台整体设计方案
+# 🤖 AI 自动化测试平台
+
+## ✨ 核心特性
+
+- 🎯 **智能测试生成**: 用户输入接口信息或页面 URL，AI 自动生成测试点和用例
+- 🔄 **多 LLM 支持**: 支持 OpenAI、Google Gemini、本地部署模型等多种AI提供商
+- 🚀 **自动化执行**: 基于 pytest / Playwright 自动执行测试
+- 📊 **智能报告**: AI 分析测试结果，提供优化建议
+- 🛡️ **失败分析**: 自动识别失败原因，智能优化测试用例
+
+---
+
+## 🔥 新功能：多 LLM 提供商支持
+
+平台现在支持灵活配置不同的 LLM 提供商：
+
+| 提供商 | 优势 | 使用场景 |
+|--------|------|----------|
+| **OpenAI** | 最强性能，高质量输出 | 生产环境，追求最佳效果 |
+| **Google Gemini** | 性价比高，响应快速 | 日常开发，成本优化 |
+| **本地模型** (Ollama/LocalAI) | 完全免费，数据隐私 | 内网环境，敏感数据 |
+| **自定义API** | 灵活定制 | 企业私有部署 |
+
+**快速切换：** 只需修改 `.env` 配置即可切换，无需改动代码！
+
+📖 [多 LLM 配置快速开始](./docs/MULTI_LLM_QUICKSTART.md)
+
+---
 
 ## 一、项目目标
 
 构建一个基于 AI 的自动化测试平台，实现：
 
 * 用户输入接口信息或页面 URL
-* 自动生成测试点
-* 自动生成测试用例（pytest / Playwright）
+* AI 自动生成测试点
+* AI 自动生成测试用例（pytest / Playwright）
 * 自动执行测试
-* 自动生成测试报告
+* AI 智能分析测试报告
 * 支持失败分析与智能优化
 
 ---
@@ -22,11 +49,15 @@
         ↓
 API 网关层 (FastAPI)
         ↓
-AI Orchestration Layer（AI调度层）
+AI Orchestration Layer（AI调度层 - 支持多 LLM 提供商）
+   ├── OpenAI (GPT-4, GPT-3.5)
+   ├── Google Gemini (Gemini Pro, 1.5)
+   ├── 本地模型 (Ollama, LocalAI)
+   └── 自定义 API (Azure OpenAI, etc.)
         ↓
 测试执行引擎层（pytest / Playwright）
         ↓
-存储层（PostgreSQL / MongoDB / Redis）
+存储层（PostgreSQL / SQLite / Redis）
 ```
 
 ---
@@ -51,6 +82,12 @@ AI Orchestration Layer（AI调度层）
 * pytest
 * Playwright
 
+## AI/LLM
+
+* **OpenAI SDK** - GPT 系列模型支持
+* **Google Generative AI** - Gemini 系列支持
+* **OpenAI 兼容接口** - 本地/自定义模型支持
+* 灵活的适配层设计，易于扩展新提供商
 ---
 
 ## 存储层

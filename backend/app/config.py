@@ -23,12 +23,28 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
-    # OpenAI
+    # LLM Configuration
+    LLM_PROVIDER: str = "openai"  # openai, gemini, local, custom
+    LLM_API_KEY: str = ""
+    LLM_API_BASE: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4-turbo-preview"
+    LLM_TEMPERATURE: float = 0.7
+    LLM_MAX_TOKENS: int = 4000
+
+    # OpenAI specific (兼容配置)
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
-    OPENAI_TEMPERATURE: float = 0.7
-    OPENAI_MAX_TOKENS: int = 4000
+    OPENAI_TEMPERATURE: float = 0.7  # 向后兼容
+    OPENAI_MAX_TOKENS: int = 4000  # 向后兼容
+
+    # Google Gemini specific
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-pro"
+
+    # Local/Custom LLM specific
+    LOCAL_LLM_API_BASE: str = "http://localhost:8080/v1"
+    LOCAL_LLM_MODEL: str = "local-model"
 
     # JWT
     SECRET_KEY: str = "change-this-secret-key-in-production"

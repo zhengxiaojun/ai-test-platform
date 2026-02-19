@@ -22,17 +22,19 @@ pytest-asyncio==0.23.3
 pytest-html==4.1.1
 playwright==1.41.0
 requests==2.31.0
-httpx==0.26.0
+httpx>=0.28.1  # Updated for google-genai compatibility
 
 # AI/LLM
 openai==1.10.0
 tiktoken==0.5.2
 langchain==0.1.4
 langchain-openai==0.0.5
+tenacity<9.0.0,>=8.1.0  # Required by langchain, must be <9.0.0
+google-genai>=0.2.0  # Google Gemini support (new SDK)
 
 # Data validation
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic>=2.9.0,<3.0.0  # Updated for google-genai compatibility
+pydantic-settings>=2.5.0  # Updated for pydantic 2.9+ compatibility
 
 # Utils
 python-dotenv==1.0.0

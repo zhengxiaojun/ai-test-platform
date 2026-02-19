@@ -1,31 +1,66 @@
 # AI Test Platform Backend
 
-## 安装依赖
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 配置环境变量
+### 2. 配置环境变量
 
 复制 `.env.example` 到 `.env` 并配置：
 
 ```bash
-cp .env.example .env
+copy .env.example .env
 ```
 
-必须配置的环境变量：
-- `OPENAI_API_KEY`: OpenAI API密钥
-- `SECRET_KEY`: JWT密钥
-- `DATABASE_URL`: 数据库连接URL
+**重要配置项：**
 
-## 安装 Playwright
+#### LLM 配置（必须）
+平台支持多种 LLM 提供商，选择一种并配置：
+
+**选项 1: OpenAI (默认)**
+```env
+LLM_PROVIDER=openai
+LLM_API_KEY=your-openai-api-key
+LLM_MODEL=gpt-4-turbo-preview
+```
+
+**选项 2: Google Gemini**
+```env
+LLM_PROVIDER=gemini
+LLM_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-pro
+```
+
+**选项 3: 本地LLM (Ollama/LocalAI)**
+```env
+LLM_PROVIDER=local
+LLM_API_BASE=http://localhost:11434/v1
+LLM_MODEL=llama2
+```
+
+**详细配置指南**: 查看 [LLM配置指南](../docs/LLM_CONFIG_GUIDE.md)
+
+#### 其他配置
+- `SECRET_KEY`: JWT密钥（生产环境必须更改）
+- `DATABASE_URL`: 数据库连接URL（默认使用SQLite）
+
+### 3. 测试 LLM 配置
+
+```bash
+python test_llm_config.py
+```
+
+### 4. 安装 Playwright（可选）
 
 ```bash
 playwright install chromium
 ```
 
-## 运行应用
+### 5. 运行应用
 
 ```bash
 python main.py
