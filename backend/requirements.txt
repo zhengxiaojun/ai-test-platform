@@ -20,6 +20,7 @@ flower==2.0.1
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-html==4.1.1
+pytest-json-report==1.5.0
 playwright==1.41.0
 requests==2.31.0
 httpx>=0.28.1  # Updated for google-genai compatibility

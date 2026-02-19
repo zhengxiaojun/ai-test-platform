@@ -204,49 +204,184 @@ Your response should be parseable by json.loads() function directly.
             return response.text
 
     def _extract_json_from_response(self, response: str) -> str:
-        """从响应中提取 JSON 内容"""
-        # 尝试提取 JSON 代码块
-        json_match = re.search(r'```json\s*\n(.*?)\n```', response, re.DOTALL)
+        """从响应中提取 JSON 内容，支持包含代码块的复杂JSON"""
+        # 尝试提取 JSON 代码块（非贪婪匹配）
+        json_match = re.search(r'```json\s*\n(.*?)(?:\n```|$)', response, re.DOTALL)
         if json_match:
             return json_match.group(1).strip()
 
         # 尝试提取普通代码块
-        code_match = re.search(r'```\s*\n(.*?)\n```', response, re.DOTALL)
+        code_match = re.search(r'```\s*\n(.*?)(?:\n```|$)', response, re.DOTALL)
         if code_match:
             content = code_match.group(1).strip()
             # 检查是否是 JSON
             if content.startswith('{') or content.startswith('['):
                 return content
 
-        # 尝试找到第一个 { 或 [ 到最后一个 } 或 ]
-        start_idx = -1
-        end_idx = -1
-        for i, char in enumerate(response):
-            if char in '{[' and start_idx == -1:
-                start_idx = i
-            if char in '}]':
-                end_idx = i
-
-        if start_idx != -1 and end_idx != -1:
-            return response[start_idx:end_idx+1]
+        # 尝试找到完整的JSON对象（使用括号匹配）
+        json_obj = self._extract_balanced_json(response)
+        if json_obj:
+            return json_obj
 
         return response.strip()
 
+    def _extract_balanced_json(self, text: str) -> Optional[str]:
+        """提取平衡的JSON对象或数组（处理嵌套的{}和[]）"""
+        # 找到第一个 { 或 [
+        start_char = None
+        start_idx = -1
+
+        for i, char in enumerate(text):
+            if char in '{[':
+                start_char = char
+                start_idx = i
+                break
+
+        if start_idx == -1:
+            return None
+
+        # 配对字符
+        closing_char = '}' if start_char == '{' else ']'
+
+        # 使用栈匹配括号
+        stack = [start_char]
+        in_string = False
+        escape_next = False
+
+        for i in range(start_idx + 1, len(text)):
+            char = text[i]
+
+            # 处理转义字符
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            # 处理字符串内部
+            if char == '"':
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            # 处理括号
+            if char in '{[':
+                stack.append(char)
+            elif char in '}]':
+                if not stack:
+                    continue
+                last = stack.pop()
+                # 检查括号是否匹配
+                if (last == '{' and char == '}') or (last == '[' and char == ']'):
+                    if not stack:
+                        # 找到完整的JSON
+                        return text[start_idx:i+1]
+
+        return None
+
     def _parse_json_response(self, response: str) -> Dict[str, Any]:
-        """解析 JSON 响应，带有错误处理"""
+        """解析 JSON 响应，带有错误处理和重试机制"""
         try:
             # 直接尝试解析
             return json.loads(response)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # 尝试提取 JSON
-            logger.warning("直接解析 JSON 失败，尝试提取...")
+            logger.warning(f"直接解析 JSON 失败: {str(e)[:100]}，尝试提取...")
             try:
                 cleaned = self._extract_json_from_response(response)
-                return json.loads(cleaned)
+                if not cleaned:
+                    raise ValueError("无法从响应中提取JSON内容")
+
+                # 尝试解析提取的内容
+                try:
+                    return json.loads(cleaned)
+                except json.JSONDecodeError as e2:
+                    # 最后的尝试：修复常见的JSON格式问题
+                    logger.warning(f"提取的JSON解析失败: {str(e2)[:100]}，尝试修复...")
+                    fixed = self._fix_common_json_issues(cleaned)
+                    return json.loads(fixed)
+
             except Exception as e:
+                # 截断超长响应用于日志
+                log_response = response[:1000] + ('...(truncated)' if len(response) > 1000 else '')
                 logger.error(f"JSON 提取和解析失败: {str(e)}")
-                logger.error(f"原始响应: {response[:500]}...")
+                logger.error(f"原始响应前1000字符: {log_response}")
                 raise ValueError(f"无法解析 LLM 响应为 JSON: {str(e)}")
+
+    def _fix_common_json_issues(self, json_str: str) -> str:
+        """修复常见的JSON格式问题，特别是代码字符串中的未转义字符"""
+        json_str = json_str.strip()
+
+        # 尝试修复包含代码块的JSON
+        # 查找 "code": " 后面的内容，直到遇到下一个顶层字段
+        try:
+            # 使用正则找到code字段的开始
+            import re
+            code_pattern = r'"code"\s*:\s*"'
+            match = re.search(code_pattern, json_str)
+
+            if match:
+                start_pos = match.end()
+                # 从code值开始，手动解析到字段结束
+                fixed_parts = [json_str[:start_pos]]
+
+                i = start_pos
+                in_code = True
+                escaped = False
+                code_content = []
+
+                while i < len(json_str) and in_code:
+                    char = json_str[i]
+
+                    if escaped:
+                        code_content.append(char)
+                        escaped = False
+                    elif char == '\\':
+                        code_content.append(char)
+                        escaped = True
+                    elif char == '"':
+                        # 可能是code字段的结束
+                        # 检查后面是否跟着逗号或右花括号
+                        next_chars = json_str[i+1:i+10].lstrip()
+                        if next_chars and next_chars[0] in ',}':
+                            # 确实是结束
+                            in_code = False
+                            # 转义code内容中的特殊字符
+                            escaped_code = ''.join(code_content)
+                            # 确保换行符被转义
+                            escaped_code = escaped_code.replace('\n', '\\n').replace('\r', '\\r')
+                            # 确保引号被转义（但不要重复转义）
+                            escaped_code = re.sub(r'(?<!\\)"', '\\"', escaped_code)
+                            fixed_parts.append(escaped_code)
+                            fixed_parts.append(json_str[i:])
+                        else:
+                            code_content.append(char)
+                    else:
+                        code_content.append(char)
+
+                    i += 1
+
+                if not in_code:
+                    json_str = ''.join(fixed_parts)
+        except Exception as e:
+            logger.warning(f"高级JSON修复失败: {str(e)}")
+
+        # 移除末尾可能的不完整内容
+        if json_str and not json_str.endswith(('}', ']')):
+            # 查找最后一个完整的字段
+            last_brace = json_str.rfind('}')
+            last_bracket = json_str.rfind(']')
+
+            # 找到最后一个有效的结束位置
+            valid_end = max(last_brace, last_bracket)
+            if valid_end > 0:
+                json_str = json_str[:valid_end + 1]
+
+        return json_str
 
     def analyze_interface(self, interface_data: Dict[str, Any]) -> Dict[str, Any]:
         """分析接口，生成测试点"""
@@ -367,7 +502,7 @@ URL: {interface_data.get('url')}
 {{
     "test_case_name": "test_xxx",
     "description": "用例描述",
-    "code": "完整的pytest代码",
+    "code": "完整的pytest代码（使用\\n表示换行，使用\\\"表示引号）",
     "test_data": {{
         "input": {{}},
         "expected": {{}}
@@ -375,6 +510,12 @@ URL: {interface_data.get('url')}
     "dependencies": ["requests", "pytest"],
     "notes": "执行注意事项"
 }}
+
+重要提示：
+1. code字段中的所有换行必须使用\\n转义
+2. code字段中的所有双引号必须使用\\\"转义
+3. 确保返回的是有效的JSON格式，可以被json.loads()直接解析
+4. 不要在JSON外包裹```json```标记
 
 代码要求：
 1. 使用pytest框架

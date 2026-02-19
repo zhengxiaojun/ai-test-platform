@@ -97,6 +97,7 @@ class TestCase(Base):
     code = Column(Text, nullable=False, comment="测试代码")
     test_data = Column(JSON, comment="测试数据")
     expected_result = Column(Text, comment="预期结果")
+    tags = Column(JSON, comment="标签列表")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -1,8 +1,7 @@
 """Pytest Test Executor"""
-import os
 import subprocess
 import json
-import tempfile
+import sys
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,30 @@ class PytestRunner:
     def __init__(self, workspace_dir: str = "test_workspace"):
         self.workspace_dir = Path(workspace_dir)
         self.workspace_dir.mkdir(exist_ok=True, parents=True)
+        self._check_pytest_plugins()
+
+    def _check_pytest_plugins(self):
+        """检查必需的pytest插件是否已安装"""
+        required_plugins = {
+            'pytest-json-report': 'pytest_jsonreport',
+            'pytest-html': 'pytest_html'
+        }
+
+        missing_plugins = []
+        for plugin_name, module_name in required_plugins.items():
+            try:
+                __import__(module_name)
+                logger.info(f"✓ {plugin_name} 已安装")
+            except ImportError:
+                missing_plugins.append(plugin_name)
+                logger.warning(f"✗ {plugin_name} 未安装")
+
+        if missing_plugins:
+            logger.warning(f"缺少以下pytest插件: {', '.join(missing_plugins)}")
+            logger.info("正在尝试自动安装...")
+            self._install_dependencies(missing_plugins)
+        else:
+            logger.info("所有必需的pytest插件已就绪")
 
     def execute_test_case(
         self,
@@ -106,17 +129,25 @@ class PytestRunner:
 
     def _install_dependencies(self, dependencies: list):
         """安装测试依赖"""
+        if not dependencies:
+            return
+
+        failed_dep = None
         try:
             for dep in dependencies:
+                failed_dep = dep
                 logger.info(f"安装依赖: {dep}")
-                subprocess.run(
-                    ["pip", "install", dep],
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", dep],
                     check=True,
                     capture_output=True,
                     text=True
                 )
+                logger.info(f"✓ {dep} 安装成功")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"依赖安装失败: {e.stderr}")
+            logger.error(f"依赖安装失败: {failed_dep}")
+            logger.error(f"错误信息: {e.stderr}")
+            raise Exception(f"无法安装依赖 {failed_dep}: {e.stderr}")
 
     def _run_pytest(self, test_file: Path) -> Dict[str, Any]:
         """运行pytest"""
@@ -128,56 +159,107 @@ class PytestRunner:
         json_report = report_dir / f"{test_file.stem}_report.json"
         log_file = report_dir / f"{test_file.stem}_log.txt"
 
+        # 使用相对于workspace的文件名，因为cwd会设置为workspace_dir
+        test_file_name = test_file.name
+
+        # 报告路径也使用相对路径
+        html_report_rel = f"reports/{test_file.stem}_report.html"
+        json_report_rel = f"reports/{test_file.stem}_report.json"
+
         # 构建pytest命令
         cmd = [
+            sys.executable,
+            "-m",
             "pytest",
-            str(test_file),
-            f"--html={html_report}",
+            test_file_name,  # 使用文件名而不是完整路径
+            f"--html={html_report_rel}",
             "--self-contained-html",
             f"--json-report",
-            f"--json-report-file={json_report}",
+            f"--json-report-file={json_report_rel}",
             "-v",
             "-s"
         ]
 
         try:
+            logger.info(f"工作目录: {self.workspace_dir}")
+            logger.info(f"测试文件: {test_file_name}")
+            logger.info(f"执行命令: {' '.join(cmd)}")
+
             # 执行pytest
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=str(self.workspace_dir)
+                cwd=str(self.workspace_dir),
+                timeout=300  # 5分钟超时
             )
 
             # 保存日志
-            log_file.write_text(result.stdout + "\n" + result.stderr, encoding="utf-8")
+            log_content = f"=== STDOUT ===\n{result.stdout}\n\n=== STDERR ===\n{result.stderr}\n\n=== RETURN CODE ===\n{result.returncode}"
+            log_file.write_text(log_content, encoding="utf-8")
+            logger.info(f"日志已保存到: {log_file}")
+
+            # 检查是否有插件相关错误
+            if "UsageError" in result.stderr or "unrecognized arguments" in result.stderr:
+                error_msg = "pytest插件配置错误，请确保 pytest-json-report 和 pytest-html 已正确安装"
+                logger.error(error_msg)
+                logger.error(f"错误详情: {result.stderr}")
+                return {
+                    "status": "error",
+                    "error": error_msg,
+                    "stderr": result.stderr,
+                    "log_path": str(log_file)
+                }
 
             # 解析结果
-            status = "success" if result.returncode == 0 else "failed"
+            if result.returncode == 0:
+                status = "success"
+            elif result.returncode == 1:
+                status = "failed"  # 测试失败
+            else:
+                status = "error"  # 其他错误
 
             # 读取JSON报告（如果存在）
             test_results = {}
             if json_report.exists():
                 try:
                     test_results = json.loads(json_report.read_text(encoding="utf-8"))
-                except:
-                    pass
+                    logger.info(f"JSON报告已生成: {json_report}")
+                except Exception as e:
+                    logger.warning(f"解析JSON报告失败: {str(e)}")
+
+            # 检查HTML报告
+            if html_report.exists():
+                logger.info(f"HTML报告已生成: {html_report}")
+            else:
+                logger.warning(f"HTML报告未生成: {html_report}")
 
             return {
                 "status": status,
                 "return_code": result.returncode,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "html_report": str(html_report),
-                "json_report": str(json_report),
+                "html_report": str(html_report) if html_report.exists() else None,
+                "json_report": str(json_report) if json_report.exists() else None,
                 "log_path": str(log_file),
                 "test_results": test_results
             }
-        except Exception as e:
-            logger.error(f"Pytest执行失败: {str(e)}")
+        except subprocess.TimeoutExpired:
+            error_msg = "测试执行超时（超过5分钟）"
+            logger.error(error_msg)
+            log_file.write_text(f"ERROR: {error_msg}", encoding="utf-8")
             return {
                 "status": "error",
-                "error": str(e),
+                "error": error_msg,
+                "log_path": str(log_file)
+            }
+        except Exception as e:
+            error_msg = f"Pytest执行失败: {str(e)}"
+            logger.error(error_msg)
+            log_file.write_text(f"ERROR: {error_msg}", encoding="utf-8")
+            return {
+                "status": "error",
+                "error": error_msg,
                 "log_path": str(log_file)
             }
 

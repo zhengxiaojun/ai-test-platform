@@ -81,6 +81,7 @@ class TestCaseBase(BaseModel):
     code: str
     test_data: Optional[Dict[str, Any]] = None
     expected_result: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class TestCaseCreate(TestCaseBase):
@@ -150,6 +151,12 @@ class TestExecutionResponse(TestExecutionBase):
 
 
 # Test Report Schemas
+class OptimizationSuggestion(BaseModel):
+    title: str
+    description: str
+    priority: str
+
+
 class TestReportBase(BaseModel):
     title: str
     summary: Optional[str] = None
@@ -160,7 +167,7 @@ class TestReportBase(BaseModel):
     pass_rate: Optional[str] = None
     coverage: Optional[str] = None
     risk_analysis: Optional[Dict[str, Any]] = None
-    optimization_suggestions: Optional[List[str]] = None
+    optimization_suggestions: Optional[List[Dict[str, Any]]] = None
     html_path: Optional[str] = None
 
 

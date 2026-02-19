@@ -1,8 +1,9 @@
 import { PageContainer, ProTable, ProColumns } from '@ant-design/pro-components';
-import { Button, Modal, Form, Input, Select, message, Space, Tag } from 'antd';
-import { PlusOutlined, ApiOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Select, message, Space, Tag, Dropdown } from 'antd';
+import { PlusOutlined, ApiOutlined, DeleteOutlined, EyeOutlined, ExperimentOutlined, MoreOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 import { useState, useEffect } from 'react';
-import { interfaceAPI, Interface, TestPoint } from '@/services/api';
+import { interfaceAPI, testCaseAPI, Interface, TestPoint } from '@/services/api';
 
 const { TextArea } = Input;
 
@@ -68,6 +69,36 @@ export default () => {
     } catch (error) {
       message.error('分析失败');
     }
+  };
+
+  const handleViewTestPoints = async (record: Interface) => {
+    try {
+      const result: any = await interfaceAPI.getTestPoints(record.id!);
+      setSelectedInterface(record);
+      setTestPoints(result || []);
+      setTestPointsModalVisible(true);
+      if (!result || result.length === 0) {
+        message.info('该接口还没有测试点，请先进行AI分析');
+      }
+    } catch (error) {
+      message.error('获取测试点失败');
+    }
+  };
+
+  const handleGenerateTestCase = async (testPoint: TestPoint) => {
+    Modal.confirm({
+      title: '生成测试用例',
+      content: `确定要为测试点"${testPoint.title}"生成测试用例吗？`,
+      onOk: async () => {
+        try {
+          message.loading({ content: '正在生成测试用例...', key: 'generate', duration: 0 });
+          await testCaseAPI.generate(testPoint.id!);
+          message.success({ content: '测试用例生成成功！', key: 'generate' });
+        } catch (error) {
+          message.error({ content: '生成测试用例失败', key: 'generate' });
+        }
+      },
+    });
   };
 
   const handleDelete = async (id: number) => {
@@ -142,33 +173,50 @@ export default () => {
       valueType: 'option',
       width: 200,
       fixed: 'right',
-      render: (_, record) => (
-        <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<ApiOutlined />}
-            onClick={() => handleAnalyze(record)}
-          >
-            AI分析
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => {
+      render: (_, record) => {
+        const menuItems: MenuProps['items'] = [
+          {
+            key: 'viewTestPoints',
+            icon: <EyeOutlined />,
+            label: '查看测试点',
+            onClick: () => handleViewTestPoints(record),
+          },
+          {
+            type: 'divider',
+          },
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: '删除',
+            danger: true,
+            onClick: () => {
               Modal.confirm({
                 title: '确认删除',
                 content: '确定要删除这个接口吗？',
                 onOk: () => handleDelete(record.id!),
               });
-            }}
-          >
-            删除
-          </Button>
-        </Space>
-      ),
+            },
+          },
+        ];
+
+        return (
+          <Space>
+            <Button
+              type="primary"
+              size="small"
+              icon={<ApiOutlined />}
+              onClick={() => handleAnalyze(record)}
+            >
+              AI分析
+            </Button>
+            <Dropdown menu={{ items: menuItems }} placement="bottomRight">
+              <Button size="small" icon={<MoreOutlined />}>
+                更多
+              </Button>
+            </Dropdown>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -201,6 +249,21 @@ export default () => {
         </Tag>
       ),
     },
+    {
+      title: '操作',
+      valueType: 'option',
+      width: 120,
+      render: (_, record) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<ExperimentOutlined />}
+          onClick={() => handleGenerateTestCase(record)}
+        >
+          生成用例
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -223,7 +286,7 @@ export default () => {
           labelWidth: 100,
           defaultCollapsed: false,
           span: 6,
-          optionRender: (searchConfig, formProps, dom) => [
+          optionRender: (searchConfig, formProps, _dom) => [
             <Button
               key="reset"
               onClick={() => {

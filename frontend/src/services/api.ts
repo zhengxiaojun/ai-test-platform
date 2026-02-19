@@ -34,7 +34,9 @@ export interface TestCase {
   code: string;
   test_data?: any;
   expected_result?: string;
+  tags?: string[];
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface TestExecution {
@@ -79,12 +81,18 @@ export const testCaseAPI = {
   list: (params?: any) => request.get('/testcases/', { params }),
   create: (data: TestCase) => request.post('/testcases/', data),
   get: (id: number) => request.get(`/testcases/${id}`),
+  update: (id: number, data: TestCase) => request.put(`/testcases/${id}`, data),
   delete: (id: number) => request.delete(`/testcases/${id}`),
+  batchDelete: (ids: number[]) => request.post('/testcases/batch-delete', ids),
+  batchExecute: (ids: number[]) => request.post('/testcases/batch-execute', ids),
+  clone: (id: number) => request.post(`/testcases/${id}/clone`),
   generate: (testPointId: number) =>
     request.post(`/testcases/generate/${testPointId}`),
   execute: (id: number) => request.post(`/testcases/${id}/execute`),
   getExecutions: (id: number, params?: any) =>
     request.get(`/testcases/${id}/executions`, { params }),
+  exportJson: (params?: any) => request.get('/testcases/export/json', { params }),
+  importJson: (data: any[]) => request.post('/testcases/import/json', data),
 };
 
 // Report API
